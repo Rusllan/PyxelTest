@@ -15,12 +15,6 @@ def draw_tile(x, y, image_num, color):
     pyxel.pal()
 
 
-class Event:
-    def __init__(self, object_id, action):
-        self.object_id = object_id
-        self.action = action
-
-
 class Object:
     last_id = 0
 
@@ -36,8 +30,8 @@ class Object:
         self.image_x = (sprite % 10)*TILE_SIZE
         self.image_y = (sprite // 10)*TILE_SIZE
 
-    def action(self):
-        return Event(self.id, 'none')
+    def move(self):
+        return []
 
     def draw(self):
         draw_tile(self.x, self.y, self.sprite, self.color)
@@ -52,17 +46,26 @@ class Player(Creature):
     def __init__(self, x, y, color, sprite, solid=True):
         super().__init__(x, y, color, sprite, solid)
 
-    def action(self):
+    def move(self):
+        action_list = []
         if pyxel.btnp(pyxel.KEY_W):
-            return Event(self.id, 'mvUp')
+            action_list.append({'object_id': self.id, 'action': 'mvUp'})
         elif pyxel.btnp(pyxel.KEY_A):
-            return Event(self.id, 'mvLt')
+            action_list.append({'object_id': self.id, 'action': 'mvLt'})
         elif pyxel.btnp(pyxel.KEY_S):
-            return Event(self.id, 'mvDn')
+            action_list.append({'object_id': self.id, 'action': 'mvDn'})
         elif pyxel.btnp(pyxel.KEY_D):
-            return Event(self.id, 'mvRt')
-        else:
-            return super().action()
+            action_list.append({'object_id': self.id, 'action': 'mvRt'})
+        return action_list
+
+
+def make_a_move():
+    in_game_keys = [pyxel.KEY_W, pyxel.KEY_A, pyxel.KEY_S, pyxel.KEY_D]
+
+    if any(pyxel.btnp(key) for key in in_game_keys):
+        return True
+    else:
+        return False
 
 
 class ObjectHandler:
@@ -80,17 +83,24 @@ class ObjectHandler:
 
     def passable(self, x, y):
         for obj in self.objects:
-            if obj.x == x and obj.y == y and obj.solid == True:
+            if obj.x == x and obj.y == y and obj.solid is True:
                 return False
         return True
 
-    def get_events(self):
-        events = []
+    def perform_moves(self):
+
         for obj in self.objects:
-            event = obj.action()
-            if event.action != 'none':
-                events.append(event)
-        return events
+            for move in [mv for mv in obj.move() if mv]:
+                subj = self.objects[move['object_id']]
+                action = move['action']
+                if action == 'mvUp' and self.passable(subj.x, subj.y - 1):
+                    subj.y = (subj.y - 1) % SCREEN_HEIGHT
+                if action == 'mvLt' and self.passable(subj.x - 1, subj.y):
+                    subj.x = (subj.x - 1) % SCREEN_WIDTH
+                if action == 'mvDn' and self.passable(subj.x, subj.y + 1):
+                    subj.y = (subj.y + 1) % SCREEN_WIDTH
+                if action == 'mvRt' and self.passable(subj.x + 1, subj.y):
+                    subj.x = (subj.x + 1) % SCREEN_WIDTH
 
 
 class App:
@@ -103,21 +113,8 @@ class App:
         pyxel.run(self.update, self.draw)
 
     def update(self):
-        self.perform_events(self.objectHandler.get_events())
-
-    def perform_events(self, events):
-
-        for event in events:
-            obj = self.objectHandler.objects[event.object_id]
-
-            if event.action == 'mvUp' and self.objectHandler.passable(obj.x, obj.y - 1):
-                obj.y = (obj.y - 1) % SCREEN_HEIGHT
-            if event.action == 'mvLt' and self.objectHandler.passable(obj.x - 1, obj.y):
-                obj.x = (obj.x - 1) % SCREEN_WIDTH
-            if event.action == 'mvDn' and self.objectHandler.passable(obj.x, obj.y + 1):
-                obj.y = (obj.y + 1) % SCREEN_WIDTH
-            if event.action == 'mvRt' and self.objectHandler.passable(obj.x + 1, obj.y):
-                obj.x = (obj.x + 1) % SCREEN_WIDTH
+        if make_a_move():
+            self.objectHandler.perform_moves()
 
     def draw(self):
         pyxel.cls(COL_BACKGROUND)
