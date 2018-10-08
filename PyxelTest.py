@@ -1,6 +1,5 @@
 import pyxel
 
-
 COL_BACKGROUND = 0
 TILE_SIZE = 8
 SCREEN_WIDTH = 160
@@ -18,7 +17,7 @@ def draw_tile(x, y, image_num, color):
 class Object:
     last_id = 0
 
-    def __init__(self, x, y, color, sprite, solid=True):
+    def __init__(self, x, y, color=0, sprite=0, solid=True, behavior=None):
         self.id = Object.last_id
         Object.last_id += 1
         self.color = color
@@ -30,33 +29,28 @@ class Object:
         self.image_x = (sprite % 10)*TILE_SIZE
         self.image_y = (sprite // 10)*TILE_SIZE
 
-    def move(self):
-        return []
+        self.solid = solid
+        self.behavior = behavior
+
+    @classmethod
+    def from_name(cls, x, y, name, color=0, sprite=1, solid=True, behavior=None):
+
+        if name == 'player':
+            color = 8
+            sprite = 82
+            behavior = 'player'
+        elif name == 'wall':
+            color = 2
+            sprite = 1
+        elif name == 'stairs_down':
+            color = 2
+            sprite = 12
+            solid = False
+
+        return Object(x, y, color=color, sprite=sprite, solid=solid, behavior=behavior)
 
     def draw(self):
         draw_tile(self.x, self.y, self.sprite, self.color)
-
-
-class Creature(Object):
-    def __init__(self, x, y, color, sprite, solid=True):
-        super().__init__(x, y, color, sprite, solid)
-
-
-class Player(Creature):
-    def __init__(self, x, y, color, sprite, solid=True):
-        super().__init__(x, y, color, sprite, solid)
-
-    def move(self):
-        action_list = []
-        if pyxel.btnp(pyxel.KEY_W):
-            action_list.append({'object_id': self.id, 'action': 'mvUp'})
-        elif pyxel.btnp(pyxel.KEY_A):
-            action_list.append({'object_id': self.id, 'action': 'mvLt'})
-        elif pyxel.btnp(pyxel.KEY_S):
-            action_list.append({'object_id': self.id, 'action': 'mvDn'})
-        elif pyxel.btnp(pyxel.KEY_D):
-            action_list.append({'object_id': self.id, 'action': 'mvRt'})
-        return action_list
 
 
 def make_a_move():
@@ -71,15 +65,20 @@ def make_a_move():
 class ObjectHandler:
     def __init__(self):
         self.objects = []
-        self.objects.append(Player(13, 5, 8, 82))
+        self.generate_location()
+
+    def generate_location(self):
+        self.objects.append(Object.from_name(13, 5, 'player'))
+
+        self.objects.append(Object.from_name(4, 4, 'stairs_down'))
         for i in range(SCREEN_WIDTH // TILE_SIZE):
-            self.objects.append(Object(i, 0, 2, 1))
+            self.objects.append(Object.from_name(i, 0, 'wall'))
         for i in range(SCREEN_WIDTH // TILE_SIZE):
-            self.objects.append(Object(i, SCREEN_HEIGHT // TILE_SIZE - 1, 2, 1))
+            self.objects.append(Object.from_name(i, SCREEN_HEIGHT // TILE_SIZE - 1, 'wall'))
         for i in range(1, SCREEN_HEIGHT // TILE_SIZE-1):
-            self.objects.append(Object(0, i, 2, 1))
+            self.objects.append(Object.from_name(0, i, 'wall'))
         for i in range(1, SCREEN_HEIGHT // TILE_SIZE-1):
-            self.objects.append(Object(SCREEN_WIDTH // TILE_SIZE - 1, i, 2, 1))
+            self.objects.append(Object.from_name(SCREEN_WIDTH // TILE_SIZE - 1, i, 'wall'))
 
     def passable(self, x, y):
         for obj in self.objects:
@@ -90,17 +89,15 @@ class ObjectHandler:
     def perform_moves(self):
 
         for obj in self.objects:
-            for move in [mv for mv in obj.move() if mv]:
-                subj = self.objects[move['object_id']]
-                action = move['action']
-                if action == 'mvUp' and self.passable(subj.x, subj.y - 1):
-                    subj.y = (subj.y - 1) % SCREEN_HEIGHT
-                if action == 'mvLt' and self.passable(subj.x - 1, subj.y):
-                    subj.x = (subj.x - 1) % SCREEN_WIDTH
-                if action == 'mvDn' and self.passable(subj.x, subj.y + 1):
-                    subj.y = (subj.y + 1) % SCREEN_WIDTH
-                if action == 'mvRt' and self.passable(subj.x + 1, subj.y):
-                    subj.x = (subj.x + 1) % SCREEN_WIDTH
+            if obj.behavior == 'player':
+                if pyxel.btnp(pyxel.KEY_W) and self.passable(obj.x, obj.y - 1):
+                    obj.y = (obj.y - 1) % SCREEN_HEIGHT
+                elif pyxel.btnp(pyxel.KEY_A) and self.passable(obj.x - 1, obj.y):
+                    obj.x = (obj.x - 1) % SCREEN_WIDTH
+                elif pyxel.btnp(pyxel.KEY_S) and self.passable(obj.x, obj.y + 1):
+                    obj.y = (obj.y + 1) % SCREEN_WIDTH
+                elif pyxel.btnp(pyxel.KEY_D) and self.passable(obj.x + 1, obj.y):
+                    obj.x = (obj.x + 1) % SCREEN_WIDTH
 
 
 class App:
